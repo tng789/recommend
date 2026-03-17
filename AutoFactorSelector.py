@@ -11,7 +11,7 @@ class AutoFactorSelector:
         self.weights = {}
         self.history_ic = pd.DataFrame()
     
-    def fit(self, df, factor_cols, future_return_col='future_return', date_col='date'):
+    def fit(self, df, factor_cols=['reversal_5', 'pb_inv', 'ps_inv', 'pe_inv', 'volatility_20'], future_return_col='future_return', date_col='date'):
         """
         df: DataFrame，包含日期、所有因子、future_return
         factor_cols: 候选因子列表，如 ['mom_5', 'pb_inv', ...]
