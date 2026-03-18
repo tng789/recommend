@@ -610,7 +610,8 @@ class Selector(object):
         month = last_month.month
         return year,month
 
-    def make_backtest_dataset(self, df_predict:pd.DataFrame, date, forward_days=10, threshold=0.3) -> pd.DataFrame:
+    def make_backtest_dataset(self, df_predict:pd.DataFrame, date, forward_days=15, threshold=0.04) -> pd.DataFrame:
+        '''中证500作为默认样本，预测未来15天收益超4%,而中证1000则不同'''
         def add_label_and_return(group):
             # forward_days = 10
             # threshold = 0.3
@@ -623,7 +624,7 @@ class Selector(object):
         first_day_of_month = datetime(year, month, 1)
         df_predict = df_predict[df_predict.index < first_day_of_month]
 
-        df_backtest = df_predict.groupby('code').apply(add_label_and_return)
+        df_backtest = df_predict.groupby('code').apply(add_label_and_return, include_groups=False)
 
         # 删除缺失值
         # df_backtest = df_backtest.dropna(subset=feature_cols + ['label','future_return'])
@@ -644,7 +645,7 @@ class Selector(object):
         # 如果是当天的第二次预测，原始数据文件就不用再创建了，节约时间
         predict_panel_file = self.base_dir / stock_pool / f"predict_panel_{today}.csv"
         if predict_panel_file.exists():
-            print("data panel exists, no need to create again...")
+            print("Data panel exists, no need to create again...")
             df_panel = pd.read_csv(predict_panel_file, parse_dates = True, index_col = 'date')
             df_predict = self.prepare_dataset(df_panel,stock_pool)
             return df_predict
@@ -723,7 +724,7 @@ class Selector(object):
         #
 
         # 保存backtest数据集, 以便查验，可不保存
-        df_backtest.to_csv(self.base_dir / stock_pool / "backtest.dataset.csv")
+        # df_backtest.to_csv(self.base_dir / stock_pool / "backtest.dataset.csv")
 
         factor.fit(
             df_backtest,
@@ -900,9 +901,9 @@ class Selector(object):
 
         self.update_dataset()
 
-        portfolio_name = self.get_portfolio()
+        # portfolio_name = self.get_portfolio()
 
-        for stock_pool in portfolio_name:
+        for stock_pool in [("zz500", "zz1000")]:
            self.make_dataframe(stock_pool=stock_pool)
            self.predict(stock_pool = stock_pool,val_end=today)
 
@@ -918,5 +919,5 @@ if __name__ == "__main__":
     # ch = input("press enter to continue.....")
     for stock_pool in (["zz500", "zz1000"]):
         df = program.make_dataframe(stock_pool=stock_pool)
-        for date in (["2026-03-13"]):
+        for date in (["2026-03-16","2026-03-17"]):
             program.predict(stock_pool=stock_pool, df_predict=df, val_end=date)
