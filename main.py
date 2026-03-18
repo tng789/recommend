@@ -1,11 +1,15 @@
+'''用于开发调试， 手工运行'''
+
 from selector import Selector
 from datetime import datetime   
+
+from baostock_ops import BaostockOps
 def main():
 
     program = Selector()
 
     today = datetime.now().strftime("%Y-%m-%d")
-    program.update_dataset()
+    BaostockOps().update_dataset()
 
     # ch = input("press enter to continue.....")
     for stock_pool in (["zz500", "zz1000"]):

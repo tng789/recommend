@@ -5,17 +5,16 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-# import multiprocessing as mp
-# from functools import partial
 
 from tqdm import tqdm
 import json
 
-# from scipy.stats import spearmanr
+from baostock_ops import BaostockOps
 
 from AutoFactorSelector import AutoFactorSelector       #for zz500
 from AutoFactorSelector_HS300 import AutoFactorSelector_HS300               #for hs300
 from AutoFactorSelector_CS1000 import AutoFactorSelector_CS1000             # for zz1000
+
 
 class Selector(object):
     working_dir = Path(".working")
@@ -24,7 +23,7 @@ class Selector(object):
                     'volatility_20', 'volume_ratio', 'turn_5',
                     'pe_inv', 'pb_inv', 'ps_inv', 'pcf_inv', 'val_score']
     def __init__(self):
-        self.calendar = self.load_calendar()
+        self.calendar = BaostockOps().load_calendar()
 
     def init_stock_pool(self,name:str, stock_list:list[str]=[]):
         if name in ("hs300","sz50","zz500"):
@@ -72,111 +71,6 @@ class Selector(object):
             # predictions.set_index('date', inplace=True)
             predictions.to_csv(self.prediction_file, index=False)
             return predictions
-    #---------------------------
-    # 从baostock 获取股票历史K线数据
-    #---------------------------
-    def _convert_to_float(self, df:pd.DataFrame)->pd.DataFrame:
-        # df = df.replace("", 0)
-        df = df.mask(df == "", 0)
-        for col in df.columns:
-            if col not in ['date', 'code']:
-                df[col] = df[col].astype(float)
-        return df
-    def _fetch_stocks(self, code:str, start_date:str, end_date:str, freq = 'd')->pd.DataFrame:
-
-        cols = ",".join(['date', 'code', 'open', 'high', 'low', 'close', 'volume', 'turn','peTTM','psTTM','pcfNcfTTM','pbMRQ'])
-        empty_df = pd.DataFrame()
-
-        rs = bs.query_history_k_data_plus(
-                code,
-                cols,
-                start_date = start_date,
-                end_date   = end_date,
-                frequency  = freq,
-                adjustflag= "2"      #复权类型，默认不复权：3；1：后复权；2：前复权。 固定不变。
-        )
-
-        if rs.error_code != '0':
-            print('query_history_k_data_plus respond error_msg:'+rs.error_msg)
-            return empty_df
-
-        data_list = []
-        while rs.next():
-            # 获取一条记录，将记录合并在一起
-            bs_data = rs.get_row_data()
-            data_list.append(bs_data)
-
-        df = pd.DataFrame(data_list, columns=rs.fields)
-        if df.shape[0] != 0:
-            # 删去成交量为零的行，重置索引
-            df = self._convert_to_float(df)
-            # df = df.replace(0,np.nan).dropna()
-            df.reset_index(drop=True, inplace=True)
-
-            df.sort_values(by=['date'], ascending=True, inplace=True)
-
-            print(f"the last date of {code} ohlcv: {df.iloc[-1]['date']}")
-        else:
-            print(f"no new ohlcv data for {code}")
-
-        return df
-
-    #---------------------------
-    # 更新股票数据，增量方式更新，不需要整个下载全部数据
-    #----------------------------
-    def _update_stock_data(self, code:str)->None:
-
-        self.working_dir.mkdir(parents=True, exist_ok=True)
-
-        # 获取股票历史数据,如果本地磁盘没有，则直接从baostock获取；若有，则取本地磁盘数据的最后一天的下一天，以此为起始日。截止日均为今日。
-        datafile = self.working_dir/f"{code}.csv"
-        today = datetime.now().strftime("%Y-%m-%d")
-        if not  datafile.exists():
-            df = pd.DataFrame()
-            start_date = "2000-01-01"
-        else:
-            df = pd.read_csv(datafile,parse_dates=True,skip_blank_lines=True)
-            df = df.dropna(how='all')
-
-            df['date'] = df['date'].str.replace("/","-")
-
-            last_date = df.iloc[-1]['date']
-            start_date = datetime.strptime(last_date,"%Y-%m-%d") + timedelta(days=1)
-            start_date = start_date.strftime("%Y-%m-%d")
-
-        #取出之后合并
-        end_date = today
-        if start_date > end_date:
-            new_transaction = pd.DataFrame()
-        else:
-            new_transaction = self._fetch_stocks(code, start_date, end_date)
-            # days = new_transaction.shape[0]
-
-        # 没有取到数据，则返回原先的数据, 有就拼接起来
-        if new_transaction.shape[0] == 0:
-            return df
-
-        df = pd.concat([df, new_transaction], axis=0).drop_duplicates()
-        # 重置索引
-        df.reset_index(drop=True, inplace=True)
-        df.to_csv(datafile, index=False, date_format='%Y-%m-%d',encoding="gbk")
-
-        return df
-    def update_dataset(self, stock_pool:str="")->None:
-
-        stock_list = self.update_stock_list(stock_pool)
-
-        entry = bs.login()          #一次登录，取多条数据
-        if entry.error_code != '0':
-            print(entry.error_msg)
-            bs.logout()
-            return
-
-        for code in stock_list:
-            self._update_stock_data(code)
-        bs.logout()
-
-        # ====== 2. 按股票分组计算技术因子 ======
     def compute_features(self,group):
         group = group.sort_index()
         close = group['close']
@@ -544,41 +438,6 @@ class Selector(object):
 
         return df_aligned
 
-    # def get_trading_calender(self, start_date:str, end_date:str=""):
-    def load_calendar(self, start_date:str = "2000-01-01", end_date:str=""):
-        # 登录
-        if end_date == "":
-            end_date = datetime.now().strftime("%Y-%m-%d")
-
-        def get_trading_days(start_date:str, end_date:str="")->pd.DataFrame:
-            rs = bs.login()
-            if rs.error_code != '0':
-                print(f"log into baostock: {rs.error_msg}")
-                return pd.DataFrame()
-
-            rs = bs.query_trade_dates(start_date=start_date,  end_date=end_date)
-            data_list = []
-            while (rs.error_code == '0') & rs.next():
-                data_list.append(rs.get_row_data())
-            df = pd.DataFrame(data_list, columns=rs.fields)
-            bs.logout()
-
-            return df
-
-        calendar = self.base_dir / "calendar.csv"
-        if calendar.exists():
-            df_calendar =  pd.read_csv(calendar, parse_dates=True)
-            last_date = df_calendar['calendar_date'].max()
-            if last_date == end_date:
-                return df_calendar
-            else:
-                df_calendar = get_trading_days(start_date, end_date)
-        else:
-            df_calendar = get_trading_days(start_date, end_date)
-
-        df_calendar.to_csv(calendar, index=False)
-        return df_calendar
-
     def to_backtest_dataset(self,df:pd.DataFrame, date:str=""):
         '''删除数据集中日期小于本月的数据, 有利于计算市场因子
         已经废弃不用，日后删除
@@ -675,7 +534,7 @@ class Selector(object):
             stock_data_file = self.working_dir / f"{code}.csv"
             if not stock_data_file.exists():
                 bs.login()
-                self._update_stock_data(code)
+                BaostockOps()._update_stock_data(code)
                 bs.logout()
             df = pd.read_csv(self.working_dir/f"{code}.csv")
             # df['stock_code'] = code
@@ -889,22 +748,3 @@ class Selector(object):
             if item.is_dir():
                 portfolio_list.append(item.name)
         return portfolio_list
-    def daily(self):
-        '''每日例行更新数据，按照股票池或者组合更新回测和预测数据集，并执行预测，并更新预测结果，写入csv文件
-        '''
-        today = datetime.now().strftime("%Y-%m-%d")
-        self.calendar = self.load_calendar()
-
-        if not self.is_trading_day(today):              # 非交易日
-            print(f"{today} 不是交易日，不进行更新")
-            return
-
-        self.update_dataset()
-
-        # portfolio_name = self.get_portfolio()
-
-        for stock_pool in [("zz500", "zz1000")]:
-           self.make_dataframe(stock_pool=stock_pool)
-           self.predict(stock_pool = stock_pool,val_end=today)
-
-
