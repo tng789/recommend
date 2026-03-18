@@ -834,7 +834,7 @@ class Selector(object):
 
         df_predict = top_stocks[top_stocks.index.get_level_values('date') == last_date][['code', 'close', 'composite_score', 'rank']]
 
-        df_stockname = pd.read_csv("stock_industry.csv")
+        df_stockname = pd.read_csv("stock_industry.csv",encoding="gbk")
         # df_stockname.set_index('code')
 
         df_predict = df_predict.join(df_stockname.set_index('code')[['code_name', 'industry']], on='code')
@@ -907,17 +907,4 @@ class Selector(object):
            self.make_dataframe(stock_pool=stock_pool)
            self.predict(stock_pool = stock_pool,val_end=today)
 
-if __name__ == "__main__":
 
-    program = Selector()
-
-    # program.init_stock_pool("hs300")
-
-    # program.update_dataset()
-    # program.update_dataset(stock_pool="zz1000")
-#
-    # ch = input("press enter to continue.....")
-    for stock_pool in (["zz500", "zz1000"]):
-        df = program.make_dataframe(stock_pool=stock_pool)
-        for date in (["2026-03-16","2026-03-17"]):
-            program.predict(stock_pool=stock_pool, df_predict=df, val_end=date)
