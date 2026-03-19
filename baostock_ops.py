@@ -5,6 +5,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 class BaostockOps:
+    index_mapping = {
+        "hs300": "sh.000300",
+        "zz500": "sh.000905",
+        "zz1000": "sh.000852"
+    }
     def __init__(self, working_dir=".working", base_dir=".local"):
         self.working_dir = Path(working_dir)
         self.base_dir = Path(base_dir)
@@ -29,6 +34,44 @@ class BaostockOps:
                 end_date   = end_date,
                 frequency  = freq,
                 adjustflag= "2"      #复权类型，默认不复权：3；1：后复权；2：前复权。 固定不变。
+        )
+
+        if rs.error_code != '0':
+            print('query_history_k_data_plus respond error_msg:'+rs.error_msg)
+            return empty_df
+
+        data_list = []
+        while rs.next():
+            # 获取一条记录，将记录合并在一起
+            bs_data = rs.get_row_data()
+            data_list.append(bs_data)
+
+        df = pd.DataFrame(data_list, columns=rs.fields)
+        if df.shape[0] != 0:
+            # 删去成交量为零的行，重置索引
+            df = self._convert_to_float(df)
+            # df = df.replace(0,np.nan).dropna()
+            df.reset_index(drop=True, inplace=True)
+
+            df.sort_values(by=['date'], ascending=True, inplace=True)
+
+            print(f"the last date of {code} ohlcv: {df.iloc[-1]['date']}")
+        else:
+            print(f"no new ohlcv data for {code}")
+
+        return df
+
+    def _fetch_index(self, code:str, start_date:str, end_date:str, freq = 'd')->pd.DataFrame:
+
+        cols = ",".join(['date', 'code', 'open', 'high', 'low', 'close', 'volume'])
+        empty_df = pd.DataFrame()
+
+        rs = bs.query_history_k_data_plus(          # 指数， 与股票不同
+                code,
+                cols,
+                start_date = start_date,
+                end_date   = end_date,
+                frequency  = freq,
         )
 
         if rs.error_code != '0':
@@ -121,6 +164,29 @@ class BaostockOps:
             self._update_stock_data(code)
         bs.logout()
 
+    def update_index(self)->None:
+        today = datetime.now()
+        last_year = today.year - 1
+        end_date = today.strftime("%Y-%m-%d")
+        start_date = f"{last_year}-01-01"
+#        self.index_mapping = {
+#            "上证指数": "sh000001",
+#            "深证成指": "sz399001",
+#            "沪深300": "sh000300",
+#            "中证1000": "sz399005",
+#            "中证500": "sz399010",
+#            "中证100": "sz399106",
+#            "中小板指": "sz399399",
+#            "创业板指": "sz399283",
+#            "上证50": "sh000016",
+#        }
+
+        bs.login()
+        for name, code in self.index_mapping.items():
+            df  = self._fetch_index(code,start_date,end_date)
+            print(df.head())
+            df.to_csv(self.working_dir / f"{code}.csv", index=False)
+        bs.logout()
     def load_calendar(self, end_date:str=""):
         # 登录
         if end_date == "":
