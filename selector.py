@@ -50,16 +50,6 @@ class Selector(object):
         trading = self.calendar.loc[self.calendar['calendar_date']==day]['is_trading_day']
         return trading == 1
 
-    def update_stock_list(self, stock_pool:str)->list[str]:
-        '''self.working_dir路径下取得所有csv的文件名，不含扩展名，写入列表变量，返回该列表。'''
-        csv_files = []
-        if stock_pool == "":
-            for file_path in self.working_dir.glob("*.csv"):
-                csv_files.append(file_path.stem)  # stem属性是文件名不包含扩展名
-        else:
-            df = pd.read_csv(self.base_dir/stock_pool/f"{stock_pool}_stocks.csv")
-            csv_files = df['code'].tolist()
-        return csv_files
     # -------------------------------------
     # 加载预测结果, 数据保存在csv文件中，下同。 是否搬进数据库，后面再说
     # -------------------------------------
@@ -693,7 +683,7 @@ class Selector(object):
 
         df_predict = top_stocks[top_stocks.index.get_level_values('date') == last_date][['code', 'close', 'composite_score', 'rank']]
 
-        df_stockname = pd.read_csv("stock_industry.csv",encoding="gbk")
+        df_stockname = pd.read_csv("stock_industry.csv")
         # df_stockname.set_index('code')
 
         df_predict = df_predict.join(df_stockname.set_index('code')[['code_name', 'industry']], on='code')

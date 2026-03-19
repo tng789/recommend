@@ -8,8 +8,8 @@ class BaostockOps:
     def __init__(self, working_dir=".working", base_dir=".local"):
         self.working_dir = Path(working_dir)
         self.base_dir = Path(base_dir)
-        # self.calendar = self.load_calendar()
         self.very_beginning = "2020-01-01"
+        self.calendar = self.load_calendar()
 
     def _convert_to_float(self, df:pd.DataFrame)->pd.DataFrame:
         df = df.mask(df == "", 0)
@@ -56,6 +56,16 @@ class BaostockOps:
 
         return df
 
+    def update_stock_list(self, stock_pool:str)->list[str]:
+        '''self.working_dir路径下取得所有csv的文件名，不含扩展名，写入列表变量，返回该列表。'''
+        csv_files = []
+        if stock_pool == "":
+            for file_path in self.working_dir.glob("*.csv"):
+                csv_files.append(file_path.stem)  # stem属性是文件名不包含扩展名
+        else:
+            df = pd.read_csv(self.base_dir/stock_pool/f"{stock_pool}_stocks.csv")
+            csv_files = df['code'].tolist()
+        return csv_files
     #---------------------------
     # 更新股票数据，增量方式更新，不需要整个下载全部数据
     #----------------------------
@@ -115,8 +125,6 @@ class BaostockOps:
         # 登录
         if end_date == "":
             end_date = datetime.now().strftime("%Y-%m-%d")
-        
-        start_date = self.very_beginning
 
         def get_trading_days(start_date:str, end_date:str="")->pd.DataFrame:
             rs = bs.login()
@@ -134,6 +142,7 @@ class BaostockOps:
             return df
 
         calendar = self.base_dir / "calendar.csv"
+        start_date = self.very_beginning
         if calendar.exists():
             df_calendar =  pd.read_csv(calendar, parse_dates=True)
             last_date = df_calendar['calendar_date'].max()
