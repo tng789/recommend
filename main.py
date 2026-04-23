@@ -79,28 +79,29 @@ def tmp():
                 program.predict(stock_pool=stock_pool, df_predict=df, val_end=trading_day)
             else:
                 print(f"{trading_day} 过去20个交易日累计跌幅 未超 5%, 不激活选股策略" )
+                
+
 def main():
 
     program = Selector()
 
-    # today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
     
     stock_ops = BaostockOps()
-    stock_ops.update_dataset()
-    stock_ops.update_index()
+    # stock_ops.update_dataset()
+    # stock_ops.update_index()
     
     # ch = input("press enter to continue.....")
     for stock_pool in (["zz500", "zz1000"]):
-        idx = stock_ops.index_mapping[stock_pool]
-        df_stockindex = pd.read_csv(stock_ops.working_dir / f"{idx}.csv",index_col="date")
-        last_day = df_stockindex.index.max()
-        activate = should_activate_strategy(df_stockindex['close'], last_day)
-        if activate:
-            df = program.make_dataframe(stock_pool=stock_pool)
-            program.predict(stock_pool=stock_pool, df_predict=df, val_end=last_day)
-        else:
-            print("过去20个交易日累计跌幅 未超 5%, 不激活选股策略")
+        # idx = stock_ops.index_mapping[stock_pool]
+        # df_stockindex = pd.read_csv(stock_ops.working_dir / f"{idx}.csv",index_col="date")
+        # last_day = df_stockindex.index.max()
+        # activate = should_activate_strategy(df_stockindex['close'], last_day)
+        # if activate:
+        df = program.get_predict_dataset(stock_ops.total_dataset, stock_pool=stock_pool)
+        program.predict(stock_pool=stock_pool, df_predict=df, val_end=today)
+        # else:
+            # print("过去20个交易日累计跌幅 未超 5%, 不激活选股策略")
 
 if __name__ == "__main__":
-    # main()
-    tmp()
+    main()
