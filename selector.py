@@ -480,93 +480,13 @@ class Selector(object):
         df_backtest = df_backtest.dropna(subset=[ 'mom_20', 'volatility_20', 'val_score', 'label', 'future_return' ])
         return df_backtest
 
-    # ------------------------------------------------------------------
-    # 最终数据集，包含技术指标，并做横截面的归一化处理，用于训练和验证，和测试
-    # 每日数据预测的输入数据也用这个函数来构建
-    # ------------------------------------------------------------------
-    def make_dataframe(self, stock_pool:str):
-        '''stock_pool: 股票池，截止到当天的交易所日历的最后交易日的1年数据，来构建预测数据集
-        比如：今天2025-10-10，则从2024-10-10开始，到2025-10-10结束
-        '''
 
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        # 如果是当天的第二次预测，原始数据文件就不用再创建了，节约时间
-        predict_panel_file = self.base_dir / stock_pool / f"predict_panel_{today}.csv"
-        if predict_panel_file.exists():
-            print("Data panel exists, no need to create again...")
-            df_panel = pd.read_csv(predict_panel_file, parse_dates = True, index_col = 'date')
-            df_predict = self.prepare_dataset(df_panel,stock_pool)
-            return df_predict
-
-        # 删除老的文件
-        for file_path in (self.base_dir / stock_pool).glob("predict_panel_*.csv"):
-            print(file_path)
-            file_path.unlink()
-
-        span = 3            # 年份跨度，1年就够了，为回溯测试，取3年的数据
-        if not (self.base_dir/stock_pool).exists():
-            return
-
-        # 取得日历的最后一天，往前数1年 span，取得那年的一月1日为数据集的开始日期
-        end_date_str = self.calendar['calendar_date'].max()
-        y,*md = end_date_str.split("-")
-        start_date = f"{str(int(y) - span)}-01-01"
-
-        df_trading_days = self.calendar[self.calendar['calendar_date'] >= start_date].copy()
-
-        all_trading_days = pd.to_datetime(df_trading_days.loc[df_trading_days['is_trading_day']==1]['calendar_date']).sort_values().unique()
-
-        all_dfs = []
-        stock_list = self.get_stock_list(stock_pool=stock_pool)
-
-        for code in tqdm(stock_list, desc="prepare dataset"):
-            stock_data_file = self.working_dir / f"{code}.csv"
-            if not stock_data_file.exists():
-                bs.login()
-                BaostockOps()._update_stock_data(code)
-                bs.logout()
-            df = pd.read_csv(self.working_dir/f"{code}.csv")
-            # df['stock_code'] = code
-            df.set_index('date', inplace=True)
-
-            # 与证交所交易日对齐，个股不交易的日子向前填充，即 若下一日不交易，则今日数据填入
-            df_aligned = self.align_stock_to_calendar(df, all_trading_days)
-            # df_aligned.to_csv(f"{code}.aligned.csv", index=False)
-            all_dfs.append(df_aligned)
-
-        df_panel = pd.concat(all_dfs).sort_index()  # 按日期排序
-
-        df_panel.to_csv(self.base_dir/ stock_pool / f"predict_panel_{today}.csv", index = True)
-
-        df_predict = self.prepare_dataset(df_panel,stock_pool)
-        return df_predict
-
-#        if not predict_mode:.
-#            for col in feature_cols:
-#                ic = spearmanr(df_final[col], df_final['future_return'])[0]
-#                print(f"{col}: Rank IC = {ic:.4f}")
 #
     def get_predict_dataset(self, total_dataset:pd.DataFrame, stock_pool:str):
         '''stock_pool: 股票池，截止到当天的交易所日历的最后交易日的1年数据，来构建预测数据集
         比如：今天2025-10-10，则从2024-10-10开始，到2025-10-10结束
         '''
 
-#        today = datetime.now().strftime("%Y-%m-%d")
-#
-#        # 如果是当天的第二次预测，原始数据文件就不用再创建了，节约时间
-#        predict_panel_file = self.base_dir / stock_pool / f"predict_panel_{today}.csv"
-#        if predict_panel_file.exists():
-#            print("Data panel exists, no need to create again...")
-#            df_panel = pd.read_csv(predict_panel_file, parse_dates = True, index_col = 'date')
-#            df_predict = self.prepare_dataset(df_panel,stock_pool)
-#            return df_predict
-#
-#        # 删除老的文件
-#        for file_path in (self.base_dir / stock_pool).glob("predict_panel_*.csv"):
-#            print(file_path)
-#            file_path.unlink()
-#
         span = 3            # 年份跨度，1年就够了，为回溯测试，取3年的数据
         if not (self.base_dir/stock_pool).exists():
             return

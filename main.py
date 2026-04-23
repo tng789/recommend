@@ -93,15 +93,8 @@ def main():
     
     # ch = input("press enter to continue.....")
     for stock_pool in (["zz500", "zz1000"]):
-        # idx = stock_ops.index_mapping[stock_pool]
-        # df_stockindex = pd.read_csv(stock_ops.working_dir / f"{idx}.csv",index_col="date")
-        # last_day = df_stockindex.index.max()
-        # activate = should_activate_strategy(df_stockindex['close'], last_day)
-        # if activate:
         df = program.get_predict_dataset(stock_ops.total_dataset, stock_pool=stock_pool)
         program.predict(stock_pool=stock_pool, df_predict=df, val_end=today)
-        # else:
-            # print("过去20个交易日累计跌幅 未超 5%, 不激活选股策略")
 
 if __name__ == "__main__":
     main()
