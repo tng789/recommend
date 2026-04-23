@@ -48,7 +48,7 @@ class Selector(object):
 
         # self.calendar['calendar_date']
         trading = self.calendar.loc[self.calendar['calendar_date']==day]['is_trading_day']
-        return trading == 1
+        return trading.all() == 1
 
     # -------------------------------------
     # 加载预测结果, 数据保存在csv文件中，下同。 是否搬进数据库，后面再说
@@ -504,7 +504,7 @@ class Selector(object):
             print(file_path)
             file_path.unlink()
 
-        span = 1            # 年份跨度，1年就够了
+        span = 3            # 年份跨度，1年就够了，为回溯测试，取3年的数据
         if not (self.base_dir/stock_pool).exists():
             return
 
@@ -667,7 +667,7 @@ class Selector(object):
         df_val['rank'] = df_val.groupby(level=0)['composite_score'].rank(method='min', ascending=False).astype(int)
 
         # 3. 可选：转换为“Top N”信号,获取每个交易日的 Top N 股票（例如 Top 10）
-        TOP_N = 20
+        TOP_N = 10
         top_stocks = df_val[df_val['rank'] <= TOP_N].copy()
         # df_val['is_top10'] = df_val['rank_pct'] <= 0.1  # 做多前10%
         # print(df_val['is_top10'])

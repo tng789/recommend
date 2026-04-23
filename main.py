@@ -1,8 +1,9 @@
 '''用于开发调试， 手工运行'''
 import pandas as pd
 from selector import Selector
-from datetime import datetime   
+from datetime import datetime, timedelta   
 
+from typing import List
 from baostock_ops import BaostockOps
 
 def should_activate_strategy(index_close_series, current_date, lookback_days=20, threshold=-0.05):
@@ -32,6 +33,52 @@ def should_activate_strategy(index_close_series, current_date, lookback_days=20,
     cumulative_return = current_price / start_price - 1
     print(cumulative_return, threshold)
     return cumulative_return <= threshold
+
+def date_range(start_date: str, end_date: str) -> List[str]:
+    """
+    返回从开始日期到结束日期的每一天的日期列表
+    
+    参数:
+    start_date (str): 开始日期，格式为 "yyyy-mm-dd"
+    end_date (str): 结束日期，格式为 "yyyy-mm-dd"
+    
+    返回:
+    List[str]: 包含日期字符串的列表，格式为 "yyyy-mm-dd"
+    """
+    # 将输入的日期字符串转换为datetime对象
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    # 计算日期差
+    delta = end - start
+    
+    # 生成日期列表
+    dates = []
+    for i in range(delta.days + 1):
+        date = start + timedelta(days=i)
+        dates.append(date.strftime("%Y-%m-%d"))
+    
+    return dates
+
+def tmp():
+    program = Selector()
+    stock_ops = BaostockOps()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    for stock_pool in (["zz500", "zz1000"]):
+        idx = stock_ops.index_mapping[stock_pool]
+        df_stockindex = pd.read_csv(stock_ops.working_dir / f"{idx}.csv",index_col="date")
+        
+        for trading_day in date_range(start_date="2025-01-01", end_date=today):
+            if not program.is_trading_day(trading_day):
+                print(f"{trading_day} 不是交易日, 跳过")
+                continue
+            activate = should_activate_strategy(df_stockindex['close'], trading_day)
+            if activate:
+                df = program.make_dataframe(stock_pool=stock_pool)
+                program.predict(stock_pool=stock_pool, df_predict=df, val_end=trading_day)
+            else:
+                print(f"{trading_day} 过去20个交易日累计跌幅 未超 5%, 不激活选股策略" )
 def main():
 
     program = Selector()
@@ -55,4 +102,5 @@ def main():
             print("过去20个交易日累计跌幅 未超 5%, 不激活选股策略")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    tmp()
