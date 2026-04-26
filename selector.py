@@ -6,7 +6,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
-from tqdm import tqdm
 import json
 
 from baostock_ops import BaostockOps
