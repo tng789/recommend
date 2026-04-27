@@ -11,17 +11,16 @@ class stock_data:
     }
     very_beginning = "2020-01-01"
 
-    def __init__(self, date:str):
+    def __init__(self):
         self.base_dir = Path("local") 
         self.calendar = my_calendar(self.base_dir)
 
         self.stock_map = self.update_stock_map()
 
         self.total_dataset = self.read_parquet()
-        self.total_dataset.set_index("date", inplace=True)
+        self.total_dataset.set_index("date", inplace=True)                      # 设置索引为date列, 这是所有的数据，从very beginning开始到今天
         
-        until = datetime.strptime(date, "%Y-%m-%d")
-        self.dataset = self.total_dataset[self.total_dataset.index <= until]
+        self.working_dataset = None                                             # working_dataset是分析的数据，初始时置为None，用set_working_dataset设置
         
         self.calendar = my_calendar(self.base_dir)
         self.datasource = BaostockOps(self.base_dir)
@@ -62,8 +61,13 @@ class stock_data:
                 group.to_parquet(output_file)
                 print(f"Saved {output_file} with {len(group)} rows")
                 
-    def update_dataset(self, start_date_str:str)->None:
+    def set_working_dataset(self, until_date:str)->None:
+        until = datetime.strptime(until_date, "%Y-%m-%d")
+        self.dataset = self.total_dataset[self.total_dataset.index <= until]   # 只保留指定日期之后的数据,这是程序要分析的数据
 
+    def update_dataset(self, start_date_str:str)->None:
+        '''如是更新整个库的数据，则从very beginning开始更新，如是日常，则从指定日期开始更新，保险起见，取20天数据
+        以覆盖当年内最长假期'''
         # start_date = pd.to_datetime(today) - pd.to_timedelta(20, unit='d')
         # start_date_str = pd.to_datetime(start_date).strftime('%Y-%m-%d')
 
@@ -202,7 +206,7 @@ class stock_data:
 
 #for test
 if __name__ == "__main__":
-    today = datetime.now()
+    today = datetime.now().strftime("%Y-%m-%d")
     database = stock_data()
     # database.update_dataset(start_date_str="2024-01-01")
     df = database.total_dataset

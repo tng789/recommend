@@ -4,8 +4,9 @@ from scipy.stats import spearmanr
 # from baostock_ops import BaostockOps, Calendar
 from datetime import datetime, timedelta
 
-from pathlib import Path
 from stockdata_ops import stock_data
+
+import sys
 
 class AutoFactorSelector_Momentum:
     """
@@ -219,7 +220,7 @@ def prepare_cross_sectional_data(all_stock_daily, stock_pool, target_date):
 
 
 # 1. 判断市场状态
-def get_market_regime(index_close, current_date, index_name='CSI500'):
+def get_market_regime_obselete(index_close, current_date, index_name='CSI500'):
     thresholds = {'CSI300': -0.065, 'CSI500': -0.05, 'CSI1000': -0.09}
     threshold = thresholds.get(index_name, -0.05)
     
@@ -238,37 +239,69 @@ def get_market_regime(index_close, current_date, index_name='CSI500'):
         return 'reversal'
     else:
         return 'momentum' 
+def get_market_regime_v2(index_close, current_date, df_history, index_name='CSI500'):
+    """
+    V2: 结合指数走势 + 动量因子有效性 (IC) 来判断
+    """
+    # --- 第一步：先用老方法判断大方向 ---
+    thresholds = {'CSI300': -0.065, 'CSI500': -0.05, 'CSI1000': -0.09}
+    threshold = thresholds.get(index_name, -0.05)
+    
+    close_today = index_close.loc[current_date]
+    close_20d_ago = index_close.shift(20).loc[current_date]
+    returns_20d = close_today / close_20d_ago - 1 if not pd.isna(close_20d_ago) else 0
+    
+    is_down_market = returns_20d <= threshold
+    
+    # --- 第二步：计算最近1个月动量因子的平均IC ---
+    # 假设 df_history 已经有 future_return 和 mom_20
+    # df_recent = df_history[df_history['date'] >= pd.to_datetime(current_date) - pd.DateOffset(months=1)]
+    day_before_month = pd.to_datetime(current_date) - pd.DateOffset(months=1)
 
+    df_recent = df_history[df_history['date'] >= datetime.strftime(day_before_month, '%Y-%m-%d')]
+    valid_data = df_recent[['mom_20', 'future_return']].dropna()
+    if len(valid_data) > 50:
+        ic_mom20, _ = spearmanr(valid_data['mom_20'], valid_data['future_return'])
+        is_momentum_valid = ic_mom20 > 0.02  # 设定一个有效阈值
+    else:
+        is_momentum_valid = False
+    
+    # --- 第三步：综合判断 ---
+    if is_down_market:
+        return 'reversal'  # 大盘暴跌，肯定是反转环境
+    elif is_momentum_valid:
+        return 'momentum'  # 大盘不差，且动量有效
+    else:
+        return 'reversal'  # 大盘不差，但动量无效 -> 内部是反转/轮动市
 
 # ==================== 5. 主程序 (已修复!) ====================
 # CSI300/500/1000分别操作
 
 if __name__ == "__main__":
     
-    # trading_day = datetime.now().strftime("%Y-%m-%d")
-    trading_day = '2026-03-31'
+    database = stock_data()
+    latest_date = database.total_dataset.index[-1]
+
+    until_date_str = sys.argv[1]
+    until_date = pd.to_datetime(until_date_str) 
+
+    while not database.calendar.is_trading_day(until_date_str):
+        until_date -= timedelta(days=1)
+        until_date_str = until_date.strftime("%Y-%m-%d")
     
-    database = stock_data(trading_day)
-    while not database.calendar.is_trading_day(trading_day):
-        day_in_dt = datetime.strptime(trading_day, "%Y-%m-%d")
-        day_in_dt = day_in_dt - timedelta(days=1)
-        trading_day = day_in_dt.strftime("%Y-%m-%d")
+    if latest_date < until_date:
+        print(f"⚠️ 数据尚未更新至{until_date_str}，请稍等...")
+        exit()
+
+    database.set_working_dataset(until_date_str)
     
+    print(f"🚀 最新数据日期: {until_date_str}")
 
     for name, code in database.index_mapping.items():
         # 读取指数历史数据，主要使用close价
         df_stock_index = pd.read_csv(database.base_dir / name / f'{code}.csv', index_col='date')
 
         index_close = df_stock_index['close']
-        regime = get_market_regime(index_close, trading_day, name)
-        print(f"📊 当前市场状态: {regime}")
-    
-        if regime == 'reversal':
-            # selector = AutoFactorSelector_Reversal()  # 你原有的反转策略类
-            selector = None
-            continue
-        else:
-            selector = AutoFactorSelector_Momentum()  # 新的动量策略类
    
         stock_list = database.stock_map[name]
         mask = database.dataset['code'].isin(stock_list)
@@ -310,13 +343,23 @@ if __name__ == "__main__":
                     df_history.groupby('stock')['close'].transform(lambda x: x.shift(-N) / x - 1) # 简单收益率
                     # .apply(lambda x: np.log(x.shift(-N) / x)) # 对数收益率
         )    
+
+        regime = get_market_regime_v2(index_close, until_date_str, df_history, name)
+        print(f"📊 {name} 当前市场状态: {regime}")
+    
+        if regime == 'reversal':
+            # selector = AutoFactorSelector_Reversal()  # 你原有的反转策略类
+            selector = None
+            continue
+        else:
+            selector = AutoFactorSelector_Momentum()  # 新的动量策略类
         # 训练
         selector.fit(df_history, future_return_col='future_return', date_col='date')
 
     
         # Step 4: ⭐ 关键修复! 生成 df_today ⭐
         print("🔍 正在准备今日选股数据...")
-        df_today = prepare_cross_sectional_data(all_stock_daily, stock_list, trading_day)             
+        df_today = prepare_cross_sectional_data(all_stock_daily, stock_list, until_date_str)             
         
         if df_today.empty:
             print("❌ 今日无有效数据，无法选股。")
@@ -326,7 +369,7 @@ if __name__ == "__main__":
             df_today['score'] = selector.get_composite_score(df_today)
             
             # Step 6: 选股
-            top_stocks = df_today.nlargest(10, 'score') # 演示用Top 2
+            top_stocks = df_today.nlargest(2, 'score') # 演示用Top 2
             print("\n🎯 最终选股结果:")
             print(top_stocks[['score']])
 
