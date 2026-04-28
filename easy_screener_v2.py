@@ -5,6 +5,7 @@ import argparse
 from stockdata_ops import stock_data
 
 def align_stock_to_calendar(df_stock, calendar):
+    '''因子等权重算法，每个股票自己算自己的权重，不需要与其它股票在日期上对齐，故此函数不需要'''
     # 1. 确保 df_stock 的 index 是 DatetimeIndex
     if not isinstance(df_stock.index, pd.DatetimeIndex):
         df_stock.index = pd.to_datetime(df_stock.index)
@@ -302,8 +303,8 @@ if __name__ == "__main__":
     latest_date = database.total_dataset.index[-1]
 
     # 获取命令行参数中的结束日期，即今日
-    # until_date_str = args.end_date
-    until_date_str = "2026-04-24" 
+    until_date_str = args.end_date
+    # until_date_str = "2026-04-24"             # 测试用
     until_date = pd.to_datetime(until_date_str) 
 
     while not database.calendar.is_trading_day(until_date_str):
@@ -314,34 +315,15 @@ if __name__ == "__main__":
         print(f"⚠️ 数据尚未更新至{until_date_str}，请稍等...")
         exit()
 
-    # 库中数据截取至end_date，即今日
     database.set_working_dataset(until_date_str)
-
-#    # 指数成分股
-#    csi300_list = database.stock_map['CSI300']
-#    csi500_list = database.stock_map['CSI500']
-#    csi1000_list = database.stock_map['CSI1000']
-#    
-#
-#
-#    
-#    # 读取指数历史数据
-#    csi300_index = pd.read_csv(base_dir / "CSI300"/f"{mapping['CSI300']}.csv", index_col='date', parse_dates=True)
-#    csi500_index = pd.read_csv(base_dir / f"{mapping['CSI500']}.csv", index_col='date', parse_dates=True)
-#    csi1000_index = pd.read_csv(base_dir / f"{mapping['CSI1000']}.csv", index_col='date', parse_dates=True)
-#    
-#    # 示例：指数成分股
-#    index_components = {
-#        'CSI300': (csi300_list, csi300_index['pctChg']),          #['000001.SZ', '600000.SH', '601318.SH', ...],  # 你的沪深300成分股列表
-#        'CSI500': (csi500_list, csi500_index['pctChg']),          #['002475.SZ', '300750.SZ', '688981.SH', ...]   # 你的中证500成分股列表
-#        'CSI1000': (csi1000_list, csi1000_index['pctChg'])           #['002475.SZ', '300750.SZ', '688981.SH', ...]   # 你的中证1000成分股列表
-#    }
 
     base_dir = database.base_dir
     index_components = {}
 
     for portfolio_name, index_code in database.index_mapping.items():
+        # 读取指数历史数据
         index_k_data = pd.read_csv(base_dir / portfolio_name / f"{index_code}.csv", index_col='date', parse_dates=True)
+        # 组合 指数组成股列表 和 指数历史数据的收益率，为后面代码使用
         index_components[portfolio_name] = (database.stock_map[portfolio_name], index_k_data['pctChg'])
 
     # --- 2. 初始化筛选器 ---
@@ -400,7 +382,7 @@ if __name__ == "__main__":
     else:
         pass
     
-    # --- 4. 输出结果 ---
+    # --- 4. 输出结果 ,保留---
 #    print("\n" + "="*50)
 #    print("🎯 最终选股结果 (供下周参考)")
 #    print("="*50)
