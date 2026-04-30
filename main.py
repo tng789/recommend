@@ -4,7 +4,8 @@ from selector import Selector
 from datetime import datetime, timedelta   
 
 from typing import List
-from baostock_ops import BaostockOps
+# from baostock_ops import BaostockOps
+from stockdata_ops import stock_data
 
 def should_activate_strategy(index_close_series, current_date, lookback_days=20, threshold=-0.05):
     """
@@ -85,15 +86,14 @@ def main():
 
     program = Selector()
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    # today = datetime.now().strftime("%Y-%m-%d")
+    today = "2026-04-27"
     
-    stock_ops = BaostockOps()
-    # stock_ops.update_dataset()
-    # stock_ops.update_index()
-    
-    # ch = input("press enter to continue.....")
+    database = stock_data()
+    database.set_working_dataset(today)
+
     for stock_pool in (["zz500", "zz1000"]):
-        df = program.get_predict_dataset(stock_ops.total_dataset, stock_pool=stock_pool)
+        df = program.get_predict_dataset(database.working_dataset, stock_pool=stock_pool)
         program.predict(stock_pool=stock_pool, df_predict=df, val_end=today)
 
 if __name__ == "__main__":

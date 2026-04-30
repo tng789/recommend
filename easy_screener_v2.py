@@ -167,7 +167,7 @@ class EasyProfitScreener:
         target_date  = pd.to_datetime(target_date)
         
         for index_name, (stock_list, benchmark_returns) in self.index_components.items():
-            print(f"\n🔍 正在处理 {index_name} 股票池...")
+            print(f"🔍 正在处理 {index_name} 股票池...")
             
             # 收集该指数内所有股票的因子
             factor_records = []
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     # until_date_str = "2026-04-24"             # 测试用
     until_date = pd.to_datetime(until_date_str) 
 
-    while not database.calendar.is_trading_day(until_date_str):
+    while database.calendar[database.calendar['calendar_date'] == until_date_str]["is_trading_day"].all() == 0:
         until_date -= timedelta(days=1)
         until_date_str = until_date.strftime("%Y-%m-%d")
     
@@ -383,15 +383,15 @@ if __name__ == "__main__":
         pass
     
     # --- 4. 输出结果 ,保留---
-#    print("\n" + "="*50)
-#    print("🎯 最终选股结果 (供下周参考)")
-#    print("="*50)
-#    for index, stocks in top_picks.items():
-#        print(f"\n{index} Top 10:")
-#        for stock_tuple in stocks:
-#            if isinstance(stock_tuple, tuple):  # 如果是(stock, score)元组
-#                stock, score = stock_tuple
-#                print(f"  - {stock} (Score: {score:.4f})")
-#            else:  # 兼容旧的数据结构
-#                print(f"  - {stock_tuple}")
+    print("\n" + "="*50)
+    print("🎯 最终选股结果 (供下周参考)")
+    print("="*50)
+    for index, stocks in top_picks.items():
+        print(f"\n{index} Top 10:")
+        for stock_tuple in stocks:
+            if isinstance(stock_tuple, tuple):  # 如果是(stock, score)元组
+                stock, score = stock_tuple
+                print(f"  - {stock} (Score: {score:.4f})")
+            else:  # 兼容旧的数据结构
+                print(f"  - {stock_tuple}")
     
