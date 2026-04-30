@@ -3,7 +3,7 @@
 from stockdata_ops import stock_data
 import sys
 import pandas as pd
-from datetime import datetime,timedelta
+from datetime import timedelta
 
 from momentum import Momentum
 from reversal import Reversal
@@ -11,38 +11,42 @@ from reversal import Reversal
 from scipy.stats import spearmanr
 
 # ==================== 3. 辅助函数: 准备横截面数据 ====================
-def prepare_cross_sectional_data(all_stock_daily, stock_pool, target_date):
+def prepare_cross_sectional_data(df_history, stock_list, target_date):
     """
     生成 df_today —— 指定日期、指定股票池的因子横截面数据
     
-    :param all_stock_daily: dict, {stock_code: daily_df}
-    :param stock_pool: list, 股票代码列表 (如 CSI500 成分股)
+    :param df_history: datefram with all the tech features.
+    :param stock_list: list, 股票代码列表 (如 CSI500 成分股)
     :param target_date: str, 'YYYY-MM-DD'
     :return: pd.DataFrame, index=stock_code, columns=factors
     """
-    records = []
-    for stock in stock_pool:
-        if stock not in all_stock_daily:
-            continue
-        df = all_stock_daily[stock]
-        if target_date not in df.index:
-            continue
-        
-        # 获取截至 target_date 的历史数据（至少需要30天）
-        df_hist = df.loc[:target_date].tail(30)
-        if len(df_hist) < 25:
-            continue
-        
-        # 提取最新一行的因子值
-        latest_row = df_hist.iloc[-1][['mom_5', 'mom_10', 'mom_20', 'turn_5', 'rsi_14', 'volatility_20']]
-        latest_row['stock'] = stock
-        records.append(latest_row)
     
-    if not records:
-        return pd.DataFrame()
+    # 复制df_history以避免修改原始数据
+    df_copy = df_history.copy()
+
+    # 如果df_history的索引是MultiIndex，获取日期级别的值
+    if isinstance(df_copy.index, pd.MultiIndex):
+        df_copy = df_copy.reset_index()  # 重置索引，使日期和其他级别成为普通列
     
-    df_cross = pd.DataFrame(records).set_index('stock')
-    return df_cross
+    # 转换target_date为datetime类型
+    target_dt = pd.to_datetime(target_date)
+    
+    # 筛选最近30天的数据
+    cutoff_date = target_dt - pd.DateOffset(days=30)
+    df_recent = df_copy[df_copy['date'] >= cutoff_date]
+    
+    # 筛选指定股票池的数据
+    df_recent = df_recent[df_recent['code'].isin(stock_list)]
+    
+    # 从最近30天数据中，对每个code取最新的记录
+    df_latest = df_recent.groupby('code').last()
+    
+    # 选取所需的列
+    required_cols = ['mom_5', 'mom_10', 'mom_20', 'turn_5', 'rsi_14', 'volatility_20']
+    available_cols = [col for col in required_cols if col in df_latest.columns]
+    df_result = df_latest[available_cols].copy()
+    
+    return df_result
 
 def get_market_regime_v2(index_close, current_date, df_history, index_name='CSI500'):
     """
@@ -63,7 +67,8 @@ def get_market_regime_v2(index_close, current_date, df_history, index_name='CSI5
     # df_recent = df_history[df_history['date'] >= pd.to_datetime(current_date) - pd.DateOffset(months=1)]
     day_before_month = pd.to_datetime(current_date) - pd.DateOffset(months=1)
 
-    df_recent = df_history[df_history['date'] >= datetime.strftime(day_before_month, '%Y-%m-%d')]
+    df_recent = df_history[df_history.index.get_level_values(1) >= day_before_month]
+    
     valid_data = df_recent[['mom_20', 'future_return']].dropna()
     if len(valid_data) > 50:
         ic_mom20, _ = spearmanr(valid_data['mom_20'], valid_data['future_return'])
@@ -109,30 +114,12 @@ if __name__ == "__main__":
         index_close = df_stock_index['close']
    
         stock_list = database.stock_map[name]
-        mask = working_dataset['code'].isin(stock_list)
-        filtered_data = working_dataset[mask]
-    
-        all_stock_daily = dict()
-        history_list = []
-        
-        print("🔄 正在计算动量因子...")
-        for stock_code, group in filtered_data.groupby('code'):
-            df = group.copy()
-        
-            # 注意：total_dataset已经将date设为索引，所以这里不再重复设置或重置
-            # 确保索引是 DatetimeIndex 以符合后续计算因子的要求
-            if not isinstance(df.index, pd.DatetimeIndex):
-                df.index = pd.to_datetime(df.index)
-            
-            df = database.compute_features(df) 
-            df.reset_index(inplace=True)
-            history_list.append(df)
+        feature_cols = database.feature_columns.get(name,[])
+        database.set_pool(name)
 
-        df_history = pd.concat(history_list, ignore_index=True)
-    
-        # 添加未来收益标签 (这里用未来5日收益作为示例)
-        df_history = df_history.sort_values(['code', 'date'])
-        # df_history['future_return'] = df_history.groupby('stock')['close'].pct_change(-5).
+        print("🔄 正在计算动量因子...")
+
+        df_history =  database.get_predict_dataset(working_dataset, stock_list, feature_cols)
         N = 5
         df_history['future_return'] = (
                     df_history.groupby('code')['close'].transform(lambda x: x.shift(-N) / x - 1) # 简单收益率
@@ -144,22 +131,17 @@ if __name__ == "__main__":
     
         if regime == 'reversal':
             revs = Reversal(name)  # 你原有的反转策略类
-            database.set_pool(name)
             
-            feature_cols = database.feature_columns.get(name,[])
-            
-            df_predict =  database.get_predict_dataset(working_dataset, stock_list, feature_cols)
-            tops = revs.predict(df_predict, until_date_str)
+            tops = revs.predict(df_history, until_date_str)
             print(tops)
         else:
             selector = Momentum()  # 新的动量策略类
             # 训练
             selector.fit(df_history, future_return_col='future_return', date_col='date')
 
-    
             # Step 4: ⭐ 关键修复! 生成 df_today ⭐
             print("🔍 正在准备今日选股数据...")
-            df_today = prepare_cross_sectional_data(all_stock_daily, stock_list, until_date_str)             
+            df_today = prepare_cross_sectional_data(df_history, stock_list, until_date_str)             
         
             if df_today.empty:
                 print("❌ 今日无有效数据，无法选股。")
