@@ -88,8 +88,12 @@ class stock_data:
 
         dataset = BaostockOps().refresh_dataset(stock_list, start_date_str)
         
-        self.total_dataset.reset_index(inplace=True)
-        self.total_dataset = pd.concat([self.total_dataset, dataset], ignore_index=True).drop_duplicates()
+        if start_date_str == self.very_beginning:
+            # 原数据丢弃
+            self.total_dataset = dataset
+        else:
+            self.total_dataset.reset_index(inplace=True)
+            self.total_dataset = pd.concat([self.total_dataset, dataset], ignore_index=True).drop_duplicates()
         # self.total_dataset.set_index("date", inplace=True)
 
         self.save_parquet(self.total_dataset)

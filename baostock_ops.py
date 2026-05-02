@@ -281,21 +281,22 @@ class my_calendar:
 
 
 #for testing
-if __name__ == "__main__":
-    ops = BaostockOps()
-    today = datetime.now()
-    today_str = datetime.strftime(today,'%Y-%m-%d')
-    # 判断今天是不是每月的最后一天，如是，则更新dataset和index，且初始日期为2020-01-01,截止日期为今天。
-    # 如果不是每月最后一天，再判断今天是否交易日，如是，则update dataset 和 index，初始日期为parquet文件中的最后一天(默认)，截止日期为今天。
-    # 如果不是交易日，则不更新。
-    #
-    if last_day_today(today):
-        print(f"{today_str} 是本月最后一日，更新全部数据")
-        ops.update_dataset(refresh = True)
-        ops.update_index()
-    elif ops.is_trading_day(today_str):
-        ops.update_dataset()
-        ops.update_index()
-    else:
-        print(f"{today_str} 不是交易日，不更新数据")
-        # pass
+#if __name__ == "__main__":
+#    ops = BaostockOps()
+#    today = datetime.now()
+#    today_str = datetime.strftime(today,'%Y-%m-%d')
+#    # 判断今天是不是每月的最后一天，如是，则更新dataset和index，且初始日期为2020-01-01,截止日期为今天。
+#    # 如果不是每月最后一天，再判断今天是否交易日，如是，则update dataset 和 index，初始日期为parquet文件中的最后一天(默认)，截止日期为今天。
+#    # 如果不是交易日，则不更新。
+#    #
+#    if last_day_today(today):
+#        print(f"{today_str} 是本月最后一日，更新全部数据")
+#        ops.update_dataset(refresh = True)
+#        ops.update_index()
+#    elif ops.is_trading_day(today_str):
+#        ops.update_dataset()
+#        ops.update_index()
+#    else:
+#        print(f"{today_str} 不是交易日，不更新数据")
+#        # pass
+#
