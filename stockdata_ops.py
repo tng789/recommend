@@ -19,6 +19,8 @@ class stock_data:
 
     def __init__(self):
         self.base_dir = Path("local") 
+        self.working_dir = Path("working")
+        
         self.calendar = my_calendar(self.base_dir)
 
         self.stock_map = self.update_stock_map()
@@ -94,7 +96,6 @@ class stock_data:
         else:
             self.total_dataset.reset_index(inplace=True)
             self.total_dataset = pd.concat([self.total_dataset, dataset], ignore_index=True).drop_duplicates()
-        # self.total_dataset.set_index("date", inplace=True)
 
         self.save_parquet(self.total_dataset)
         self.total_dataset.set_index("date", inplace=True)

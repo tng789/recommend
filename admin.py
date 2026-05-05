@@ -90,7 +90,7 @@ def get_market_regime_v2(index_close, current_date, df_history, index_name='CSI5
 if __name__ == "__main__":
     
     database = stock_data()
-    latest_date = database.total_dataset.index[-1]
+    latest_date = database.total_dataset.index.max()
 
     until_date_str = sys.argv[1]
     until_date = pd.to_datetime(until_date_str) 

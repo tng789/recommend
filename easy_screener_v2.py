@@ -300,7 +300,7 @@ if __name__ == "__main__":
 
     database = stock_data()
     # 库中数据的最新日期
-    latest_date = database.total_dataset.index[-1]
+    latest_date = database.total_dataset.index.max()
 
     # 获取命令行参数中的结束日期，即今日
     until_date_str = args.end_date
@@ -368,7 +368,7 @@ if __name__ == "__main__":
         save_results(base_dir, top_picks, until_date_str)
     elif args.history:
         # 运行历史回测
-        start_date = args.start_date or "2025-01-01"
+        start_date = args.start_date #or "2025-01-01"
         end_date = args.end_date
         fridays = get_fridays(start_date=start_date, end_date=end_date)
         
