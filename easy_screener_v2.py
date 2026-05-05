@@ -206,8 +206,20 @@ class EasyProfitScreener:
             
             # 选出Top N
             top_stocks = zscore_df.nlargest(self.top_n, 'composite_score')
-            # 修改结果存储方式，保存(stock, score)元组
-            results[index_name] = [(stock, zscore_df.loc[stock, 'composite_score']) for stock in top_stocks.index]
+            # 修改结果存储方式，保存(stock, close_price, score)元组
+            results[index_name] = []
+            for stock in top_stocks.index:
+                # 获取股票数据直到目标日期
+                stock_data_until_target = all_stocks_data[stock][all_stocks_data[stock].index <= target_date]
+                
+                if not stock_data_until_target.empty:
+                    # 获取最接近目标日期的收盘价
+                    latest_close = stock_data_until_target['close'].iloc[-1]
+                    composite_score = zscore_df.loc[stock, 'composite_score']
+                    results[index_name].append((stock, latest_close, composite_score))
+                else:
+                    # 如果没有数据，使用默认值
+                    results[index_name].append((stock, 0.0, zscore_df.loc[stock, 'composite_score']))
             
 #            print(f"  ✅ {index_name} Top {self.top_n}:")
 #            for i, (stock, score) in enumerate(results[index_name], 1):
@@ -222,12 +234,29 @@ def save_results(folder, top_picks, target_date):
     for index, stocks in top_picks.items():
         for stock_tuple in stocks:
             if isinstance(stock_tuple, tuple):
-                stock, score = stock_tuple
+                if len(stock_tuple) == 3:  # 包含股票代码、收盘价和综合得分
+                    stock, close_price, score = stock_tuple
+                    csv_rows.append({
+                        'date': target_date,
+                        'index': index,
+                        'code': stock,
+                        'close': close_price,
+                        'composite_score': score
+                    })
+                else:  # 兼容旧格式
+                    stock, score = stock_tuple
+                    csv_rows.append({
+                        'date': target_date,
+                        'index': index,
+                        'code': stock,
+                        'composite_score': score
+                    })
+            else:  # 兼容更老的格式
                 csv_rows.append({
                     'date': target_date,
                     'index': index,
-                    'code': stock,
-                    'composite_score': score
+                    'code': stock_tuple,
+                    'composite_score': None
                 })
     
     # 按日期降序排列（新日期在上面）
@@ -235,6 +264,7 @@ def save_results(folder, top_picks, target_date):
     
     # 转换为DataFrame
     df_to_save = pd.DataFrame(csv_rows)
+
     
     # 定义文件路径
     csv_file_path = folder / "picks.csv"
@@ -389,9 +419,13 @@ if __name__ == "__main__":
     for index, stocks in top_picks.items():
         print(f"\n{index} Top 10:")
         for stock_tuple in stocks:
-            if isinstance(stock_tuple, tuple):  # 如果是(stock, score)元组
-                stock, score = stock_tuple
-                print(f"  - {stock} (Score: {score:.4f})")
-            else:  # 兼容旧的数据结构
+            if isinstance(stock_tuple, tuple):  # 如果是(stock, close, score)元组
+                if len(stock_tuple) == 3:
+                    stock, close_price, score = stock_tuple
+                    print(f"  - {stock} (Close: {close_price:.2f}, Score: {score:.4f})")
+                else:  # 兼容旧的数据格式
+                    stock, score = stock_tuple
+                    print(f"  - {stock} (Score: {score:.4f})")
+            else:  # 兼容旧的数据格式
                 print(f"  - {stock_tuple}")
     
