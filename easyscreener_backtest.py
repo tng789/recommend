@@ -6,6 +6,43 @@ from stockdata_ops import stock_data
 # from datetime import datetime, timedelta
 # from pathlib import Path
 
+def create_pivot_table_for_date(target_date, working_dir, pool):
+    """
+    为特定日期的picks_returns文件创建透视表
+    
+    Args:
+        target_date: 目标日期
+        working_dir: 工作目录路径
+        pool: 池名称（如CSI300, CSI500等）
+    """
+    import os
+    # 输入文件路径
+    input_file = working_dir / pool / f"picks_returns_{target_date}.csv"
+    
+    if not input_file.exists():
+        print(f"文件不存在: {input_file}")
+        return
+    
+    # 读取数据
+    df = pd.read_csv(input_file)
+    
+    # 创建透视表：行是股票代码，列是日期，值是pct_change_from_start
+    pivot_df = df.pivot(index='code', columns='date', values='pct_change_from_start')
+    
+    # 填充缺失值为NaN（默认情况下pivot会自动填充缺失值）
+    pivot_df.fillna(value=pd.NA, inplace=True)
+    
+    # 输出透视表文件路径
+    output_dir = working_dir / pool
+    output_filename = output_dir / f"picks_returns_pivot_{target_date}.csv"
+    
+    # 保存透视表
+    pivot_df.to_csv(output_filename)
+    
+    print(f"透视表已保存到: {output_filename}")
+    print(f"透视表形状: {pivot_df.shape}")
+
+
 if __name__ == "__main__":
 
     database = stock_data()
@@ -98,6 +135,9 @@ if __name__ == "__main__":
                 output_filename = output_dir / f"picks_returns_{target_date}.csv"
                 final_result.to_csv(output_filename, index=False)
                 print(f"已保存 {target_date} 的回测数据到 {output_filename}")
+                
+                # 创建透视表
+                create_pivot_table_for_date(target_date, database.working_dir, pool)
             else:
                 print(f"警告: 日期 {target_date} 没有找到有效的股票数据")
     
